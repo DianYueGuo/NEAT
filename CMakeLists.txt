@@ -8,9 +8,10 @@ include_directories(./include)
 
 add_library(neat STATIC ${SOURCES})
 
-# NEAT headers use SFML for drawing; make sure SFML includes are visible.
-find_package(SFML COMPONENTS Graphics REQUIRED)
-target_link_libraries(neat PUBLIC SFML::Graphics)
+# NEAT headers use SFML for drawing. Link if the target is available from the parent build.
+if(TARGET SFML::Graphics)
+    target_link_libraries(neat PUBLIC SFML::Graphics)
+endif()
 
 target_compile_options(neat PRIVATE
 	$<$<CXX_COMPILER_ID:MSVC>:/W4 /WX>
