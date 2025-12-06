@@ -346,10 +346,6 @@ void Population::mutate(float mutateWeightThresh, float mutateWeightFullChangeTh
 	}
 }
 
-void Population::drawNetwork(int genomeId, sf::Vector2u windowSize, float dotsRadius) {
-	genomes[genomeId].drawNetwork(windowSize, dotsRadius);
-}
-
 void Population::printInfo(bool extendedGlobal, bool printSpecies, bool printGenomes, bool extendedGenomes) {
 	std::cout << "GENERATION " << generation << std::endl;
 	
