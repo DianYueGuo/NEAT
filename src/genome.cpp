@@ -341,11 +341,17 @@ void Genome::updateLayersRec(int nodeId) {
     while (!stack.empty()) {
         int current = stack.back();
         stack.pop_back();
+		if (current < 0 || current >= static_cast<int>(nodes.size())) {
+            continue;
+        }
         int baseLayer = nodes[current].layer;
 
         for (int iConn = 0; iConn < (int) connections.size(); iConn++) {
             if (!connections[iConn].isRecurrent && connections[iConn].enabled && connections[iConn].inNodeId == current) {
                 int newNodeId = connections[iConn].outNodeId;
+				if (newNodeId < 0 || newNodeId >= static_cast<int>(nodes.size())) {
+                    continue;
+                }
                 int newLayer = baseLayer + 1;
                 if (nodes[newNodeId].layer < newLayer) {
                     nodes[newNodeId].layer = newLayer;
