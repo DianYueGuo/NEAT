@@ -8,6 +8,10 @@ include_directories(./include)
 
 add_library(neat STATIC ${SOURCES})
 
+# NEAT headers use SFML for drawing; make sure SFML includes are visible.
+find_package(SFML COMPONENTS Graphics REQUIRED)
+target_link_libraries(neat PUBLIC SFML::Graphics)
+
 target_compile_options(neat PRIVATE
 	$<$<CXX_COMPILER_ID:MSVC>:/W4 /WX>
 	$<$<CXX_COMPILER_ID:GNU>:-Wall -Wextra -Werror -O3 -Wfloat-equal -Wundef -Wcast-align -Wwrite-strings -Wunreachable-code -Wconversion -Wno-error=maybe-uninitialized -Wpedantic -Wcast-align -Wno-error=vla>
