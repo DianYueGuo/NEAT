@@ -334,11 +334,24 @@ bool Genome::addNode(std::vector<std::vector<int>>* innovIds, int* lastInnovId, 
 }
 
 void Genome::updateLayersRec(int nodeId) {
-	for (int iConn = 0; iConn < (int) connections.size(); iConn++) {
-		if (!connections[iConn].isRecurrent && connections[iConn].enabled && connections[iConn].inNodeId == nodeId) {
-			int newNodeId = connections[iConn].outNodeId;
-			nodes[newNodeId].layer = nodes[nodeId].layer + 1;
-			updateLayersRec(newNodeId);
-		}
-	}
+	// Avoid infinite recursion on cycles by iteratively propagating layer updates only when they increase.
+    std::vector<int> stack;
+    stack.push_back(nodeId);
+
+    while (!stack.empty()) {
+        int current = stack.back();
+        stack.pop_back();
+        int baseLayer = nodes[current].layer;
+
+        for (int iConn = 0; iConn < (int) connections.size(); iConn++) {
+            if (!connections[iConn].isRecurrent && connections[iConn].enabled && connections[iConn].inNodeId == current) {
+                int newNodeId = connections[iConn].outNodeId;
+                int newLayer = baseLayer + 1;
+                if (nodes[newNodeId].layer < newLayer) {
+                    nodes[newNodeId].layer = newLayer;
+                    stack.push_back(newNodeId);
+                }
+            }
+        }
+    }
 }
