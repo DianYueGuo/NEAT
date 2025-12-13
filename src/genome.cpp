@@ -146,10 +146,9 @@ void Genome::mutate(std::vector<std::vector<int>>* innovIds, int* lastInnovId, b
 	while (randomNb < 1.0f + 1e-10 && randomNb > 1.0f - 1e-10) {	// == 1
 		randomNb = (float) rand() / (float) RAND_MAX;
 	}	// generate a random value in [0,1)
-	if (randomNb < mutateWeightThresh) {
-		// mutating weights
-		mutateWeights(mutateWeightFullChangeThresh, mutateWeightFactor);
-	}
+
+	// mutating weights
+	mutateWeights(mutateWeightFullChangeThresh, mutateWeightFactor, mutateWeightThresh);
 	
 	// ### CONNECTIONS ###
 	randomNb = (float) rand() / (float) RAND_MAX;
@@ -172,9 +171,14 @@ void Genome::mutate(std::vector<std::vector<int>>* innovIds, int* lastInnovId, b
 	}
 }
 
-void Genome::mutateWeights(float mutateWeightFullChangeThresh, float mutateWeightFactor) {
+void Genome::mutateWeights(float mutateWeightFullChangeThresh, float mutateWeightFactor, float mutateWeightThresh) {
 	for (int i = 0; i < (int) connections.size(); i++) {
 		float randomNb = (float) rand() / (float) RAND_MAX;
+		if (randomNb > mutateWeightThresh) {
+			continue;
+		}
+
+		randomNb = (float) rand() / (float) RAND_MAX;
 		while (randomNb < 1.0f + 1e-10 && randomNb > 1.0f - 1e-10) {	// == 1
 			randomNb = (float) rand() / (float) RAND_MAX;
 		}	// generate a random value in [0,1)
