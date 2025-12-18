@@ -1,4 +1,5 @@
 #include <NEAT/population.hpp>
+#include <sstream>
 
 using namespace neat;
 
@@ -468,18 +469,20 @@ void Population::load(const std::string filepath){
 
 		if (getline(fileobj, line)){
 			innovIds.clear();
-			size_t pos_sep = line.find(';');
-			while (pos_sep != std::string::npos) {
-				innovIds.push_back({});
-				std::string sub_line = line.substr(0, pos_sep - 1);
-				pos = sub_line.find(',');
-				while (pos != std::string::npos) {
-					innovIds.back().push_back(stoi(sub_line.substr(0, pos)));
-					sub_line = sub_line.substr(pos + 1);
-					pos = sub_line.find(',');
+			std::stringstream ss(line);
+			std::string row;
+			while (std::getline(ss, row, ';')) {
+				if (row.empty()) {
+					continue;
 				}
-				line = line.substr(pos_sep + 1);
-				pos_sep = line.find(';');
+				innovIds.push_back({});
+				std::stringstream rowStream(row);
+				std::string val;
+				while (std::getline(rowStream, val, ',')) {
+					if (!val.empty()) {
+						innovIds.back().push_back(stoi(val));
+					}
+				}
 			}
 		} else {
 			std::cout << "Error while loading model" << std::endl;
