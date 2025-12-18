@@ -99,32 +99,66 @@ void Genome::loadInputs(float inputs[]) {
 void Genome::runNetwork(float activationFn(float input)) {
 	/* Process all sumInput and sumOutput. For that, it "scans" each layer from the inputs to the last hidden's layer to calculate sumInput with already known value. */ 
 	
-	// reset sumInput
+	// reset sums for non-input nodes
 	for (int i = nbInput + 1; i < (int) nodes.size(); i++) {
 		nodes[i].sumInput = 0;
+		nodes[i].sumOutput = 0;
 	}
-	
-	int lastLayer = nodes[1 + nbInput].layer;
-	
-	for (int ilayer = 0; ilayer < lastLayer; ilayer++) {
-		// process sumInput
-		for (int i = 0; i < (int) connections.size(); i++) {
-			if (!connections[i].enabled) continue;	// connection disabled
 
-			int inLayer = nodes[connections[i].inNodeId].layer;
-			int outLayer = nodes[connections[i].outNodeId].layer;
-
-			if (inLayer != ilayer) continue;	// only process nodes in current layer
-			if (outLayer <= inLayer) continue;	// skip recurrent/backward links in this feed-forward pass
-
-			nodes[connections[i].outNodeId].sumInput += nodes[connections[i].inNodeId].sumOutput * connections[i].weight;
+	// Detect whether we need to handle recurrent/backward edges.
+	bool hasRecurrent = false;
+	for (const auto& conn : connections) {
+		if (conn.enabled && (conn.isRecurrent || nodes[conn.inNodeId].layer >= nodes[conn.outNodeId].layer)) {
+			hasRecurrent = true;
+			break;
 		}
-		
-		// process sumOutput
-		for (int i = 1 + nbInput; i < (int) nodes.size(); i++) {	// for each node except inputs because sumOutput has already be calculated
-			if (nodes[i].layer == ilayer + 1) {
-				nodes[i].sumOutput = activationFn(nodes[i].sumInput);
+	}
+
+	if (!hasRecurrent) {
+		int lastLayer = nodes[1 + nbInput].layer;
+		for (int ilayer = 0; ilayer < lastLayer; ilayer++) {
+			// process sumInput
+			for (int i = 0; i < (int) connections.size(); i++) {
+				if (!connections[i].enabled) continue;	// connection disabled
+
+				int inLayer = nodes[connections[i].inNodeId].layer;
+				int outLayer = nodes[connections[i].outNodeId].layer;
+
+				if (inLayer != ilayer) continue;	// only process nodes in current layer
+				if (outLayer <= inLayer) continue;	// skip recurrent/backward links in this feed-forward pass
+
+				nodes[connections[i].outNodeId].sumInput += nodes[connections[i].inNodeId].sumOutput * connections[i].weight;
 			}
+			
+			// process sumOutput
+			for (int i = 1 + nbInput; i < (int) nodes.size(); i++) {	// for each node except inputs because sumOutput has already be calculated
+				if (nodes[i].layer == ilayer + 1) {
+					nodes[i].sumOutput = activationFn(nodes[i].sumInput);
+				}
+			}
+		}
+		return;
+	}
+
+	// Simple time-unrolled recurrent update: use previous outputs to compute new inputs for a few steps.
+	const int recurrentSteps = 5;
+	for (int step = 0; step < recurrentSteps; ++step) {
+		std::vector<float> prevOutputs;
+		prevOutputs.reserve(nodes.size());
+		for (const auto& n : nodes) {
+			prevOutputs.push_back(n.sumOutput);
+		}
+
+		std::vector<float> newInputs(nodes.size(), 0.0f);
+
+		for (const auto& conn : connections) {
+			if (!conn.enabled) continue;
+			newInputs[conn.outNodeId] += prevOutputs[conn.inNodeId] * conn.weight;
+		}
+
+		for (int i = 1 + nbInput; i < (int) nodes.size(); i++) {	// skip bias and inputs
+			nodes[i].sumInput = newInputs[i];
+			nodes[i].sumOutput = activationFn(nodes[i].sumInput);
 		}
 	}
 }
