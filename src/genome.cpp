@@ -219,6 +219,13 @@ void Genome::mutateWeights(float mutateWeightFullChangeThresh, float mutateWeigh
 			// pertub weight
 			connections[i].weight += connections[i].weight * ((float) rand() / (float) RAND_MAX * 2 * mutateWeightFactor - mutateWeightFactor);
 		}
+
+		// clamp to keep weights bounded
+		if (connections[i].weight > weightExtremumInit) {
+			connections[i].weight = weightExtremumInit;
+		} else if (connections[i].weight < -weightExtremumInit) {
+			connections[i].weight = -weightExtremumInit;
+		}
 	}
 }
 
