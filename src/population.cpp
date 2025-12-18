@@ -622,11 +622,11 @@ void Population::load(const std::string filepath){
 			} else {
 				std::cout << "Error while loading model" << std::endl;
 				throw 0;
-			}
-			if (getline(fileobj, line)){
-				genomes.back().connections.clear();
-				pos = line.find(',');
-				while (pos != std::string::npos) {
+				}
+				if (getline(fileobj, line)){
+					genomes.back().connections.clear();
+					pos = line.find(',');
+					while (pos != std::string::npos) {
 					genomes.back().connections.push_back(Connection());
 
 					genomes.back().connections.back().innovId = stoi(line.substr(0, pos));
@@ -671,14 +671,26 @@ void Population::load(const std::string filepath){
 					}
 					genomes.back().connections.back().isRecurrent = (line.substr(0, pos) == "1");
 
-					line = line.substr(pos + 1);
-					pos = line.find(',');
+						line = line.substr(pos + 1);
+						pos = line.find(',');
+					}
+					// Enforce feed-forward canonical NEAT on load: drop recurrence and disable backward links.
+					for (auto& conn : genomes.back().connections) {
+						conn.isRecurrent = false;
+						if (conn.inNodeId < 0 || conn.inNodeId >= (int) genomes.back().nodes.size() ||
+						    conn.outNodeId < 0 || conn.outNodeId >= (int) genomes.back().nodes.size()) {
+							conn.enabled = false;
+							continue;
+						}
+						if (genomes.back().nodes[conn.inNodeId].layer >= genomes.back().nodes[conn.outNodeId].layer) {
+							conn.enabled = false;
+						}
+					}
+				} else {
+					std::cout << "Error while loading model" << std::endl;
+					throw 0;
 				}
-			} else {
-				std::cout << "Error while loading model" << std::endl;
-				throw 0;
 			}
-		}
 
 		fileobj.close();
 	} else {

@@ -113,6 +113,7 @@ void Genome::getOutputs(float outputs[]) {
 
 
 void Genome::mutate(std::vector<std::vector<int>>* innovIds, int* lastInnovId, bool areRecurrentConnectionsAllowed, float mutateWeightThresh, float mutateWeightFullChangeThresh, float mutateWeightFactor, float addConnectionThresh, int maxIterationsFindConnectionThresh, float reactivateConnectionThresh, float addNodeThresh, int maxIterationsFindNodeThresh) {
+	(void) areRecurrentConnectionsAllowed;	// recurrent links are disallowed
 	// ### WEIGHTS ###
 	float randomNb = (float) rand() / (float) RAND_MAX;
 	while (randomNb < 1.0f + 1e-10 && randomNb > 1.0f - 1e-10) {	// == 1
@@ -165,6 +166,7 @@ void Genome::mutateWeights(float mutateWeightFullChangeThresh, float mutateWeigh
 }
 
 bool Genome::addConnection(std::vector<std::vector<int>>* innovIds, int* lastInnovId, int maxIterationsFindConnectionThresh, bool areRecurrentConnectionsAllowed, float reactivateConnectionThresh) {	// return true if the process ended well, false in the other case
+	(void) areRecurrentConnectionsAllowed;	// recurrent links are disallowed for canonical NEAT
 	// find valid node pair
 	int iterationNb = 0;
 	int isValid = 0;
@@ -200,22 +202,19 @@ bool Genome::addConnection(std::vector<std::vector<int>>* innovIds, int* lastInn
 			} else {
 				return true;	// return true even no connection has been change because process ended well
 			}
-		} else {
-			int innovId = getInnovId(innovIds, lastInnovId, inNodeId, outNodeId);
-			float weight = (float) rand() / (float) RAND_MAX * 2 * weightExtremumInit - weightExtremumInit;	// random number in [-weightExtremumInit; weightExtremumInit]
-			bool recurrent = false;
-			if (isValid == 3) {
-				recurrent = true;
+			} else {
+				int innovId = getInnovId(innovIds, lastInnovId, inNodeId, outNodeId);
+				float weight = (float) rand() / (float) RAND_MAX * 2 * weightExtremumInit - weightExtremumInit;	// random number in [-weightExtremumInit; weightExtremumInit]
+				connections.push_back(Connection(innovId, inNodeId, outNodeId, weight, true, false));
+				return true;
 			}
-			connections.push_back(Connection(innovId, inNodeId, outNodeId, weight, true, recurrent));
-			return true;
+		} else {
+			return false;	// cannot find a valid connection
 		}
-	} else {
-		return false;	// cannot find a valid connection
-	}
 }
 
-int Genome::isValidNewConnection(int inNodeId, int outNodeId, bool areRecurrentConnectionsAllowed) {	// 0 = not valid connection, 1 = valid connection, 2 = connection currently disabled, 3 = recurrent connections
+int Genome::isValidNewConnection(int inNodeId, int outNodeId, bool areRecurrentConnectionsAllowed) {	// 0 = not valid connection, 1 = valid connection, 2 = connection currently disabled
+	(void) areRecurrentConnectionsAllowed;	// recurrent links are disallowed
 	if (inNodeId == outNodeId) return 0;	// the connection boucle itself
 	if (nodes[inNodeId].layer == nodes[outNodeId].layer) return 0;	// the connection link to nodes on the same layer
 	for (int i = 0; i < (int) connections.size(); i++) {
@@ -234,6 +233,7 @@ int Genome::isValidNewConnection(int inNodeId, int outNodeId, bool areRecurrentC
 }
 
 bool Genome::addNode(std::vector<std::vector<int>>* innovIds, int* lastInnovId, int maxIterationsFindNodeThresh, bool areRecurrentConnectionsAllowed) {	// return true = node created, false = nothing created
+	(void) areRecurrentConnectionsAllowed;	// recurrent links are disallowed
 	// choose at random an enabled forward connection
 	if ((int) connections.size() > 0) {
 		int iConn = rand() % (int) connections.size();
