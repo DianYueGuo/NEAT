@@ -50,13 +50,10 @@ int main() {
     int popSize = ; // population size
     int nbInput = ; // number of input (bias not included)
     int nbOutput = ;    // number of output
-    int nbHiddenInit = ;    // number of hidden node at initialisation
-    float probConnInit = ;  // probability of a connection being created at initialisation
-    bool areRecurrentConnectionsAllowed = false; // are recurrent connections allowed ? True if yes, else false
     float weightExtremumInit = 100.0f;    // weight range for connections at innitalisation: each weight will be included in [-weightExtremumInit, weightExtremumInit]
     float speciationThreshInit = 20.0f;  // The speciation threshold will be initialised to this value
     int threshGensSinceImproved = 15; // Number of generation with no improvement allowed per species, after that concerned species will be swept away
-    Population myPop(popSize, nbInput, nbOutput, nbHiddenInit, probConnInit, areRecurrentConnectionsAllowed, weightExtremumInit, speciationThreshInit, threshGensSinceImproved);
+    Population myPop(popSize, nbInput, nbOutput, weightExtremumInit, speciationThreshInit, threshGensSinceImproved);
     
     
     // for runNetworkAuto
@@ -75,9 +72,9 @@ int main() {
     bool elitism = false;    // if at each generation the fitter genome is conserve true, else false
     
     // for mutate
-    float mutateWeightThresh = 0.8f;    // probability of a connection's weight being mutated
+    float mutateWeightThresh = 0.9f;    // probability of a connection's weight being mutated
     float mutateWeightFullChangeThresh = 0.1f;    // probability of a connection's weight being fully changed
-    float mutateWeightFactor = 1.2f;    // factor applied to perturbate weight will be in [-mutateWeightFactor, mutateWeightFactor]
+    float mutateWeightFactor = 0.5f;    // additive jitter range in [-mutateWeightFactor, mutateWeightFactor]
     float addConnectionThresh = 0.05f;  // probability of a connection being added
     int maxIterationsFindConnectionThresh = 20; // maximum number of iteration to found a valid connection to create
     float reactivateConnectionThresh = 0.25f;   // probability of a connection being re-enabled

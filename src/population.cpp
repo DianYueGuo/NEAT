@@ -3,12 +3,12 @@
 
 using namespace neat;
 
-Population::Population(int popSize, int nbInput, int nbOutput, int nbHiddenInit, float probConnInit, bool areRecurrentConnectionsAllowed, float weightExtremumInit, float speciationThreshInit, int threshGensSinceImproved): popSize(popSize), speciationThresh(speciationThreshInit), threshGensSinceImproved(threshGensSinceImproved), nbInput(nbInput), nbOutput(nbOutput), nbHiddenInit(nbHiddenInit), probConnInit(probConnInit), areRecurrentConnectionsAllowed(areRecurrentConnectionsAllowed), weightExtremumInit(weightExtremumInit) {
+Population::Population(int popSize, int nbInput, int nbOutput, float weightExtremumInit, float speciationThreshInit, int threshGensSinceImproved): popSize(popSize), speciationThresh(speciationThreshInit), threshGensSinceImproved(threshGensSinceImproved), nbInput(nbInput), nbOutput(nbOutput), weightExtremumInit(weightExtremumInit) {
 	generation = 0;
 	lastInnovId = -1;
 	fitterGenomeId = -1;
 	for (int i = 0; i < popSize; i++) {
-		genomes.push_back(Genome(nbInput, nbOutput, nbHiddenInit, probConnInit, &innovIds, &lastInnovId, weightExtremumInit));
+		genomes.push_back(Genome(nbInput, nbOutput, &innovIds, &lastInnovId, weightExtremumInit));
 	}
 }
 
@@ -246,7 +246,7 @@ void Population::crossover(bool elitism) {
 	std::vector<Genome> newGenomes;
 	
 	if (elitism) {	// elitism mode on = we conserve during generations the fitter genome
-		Genome newGenome(nbInput, nbOutput, nbHiddenInit, probConnInit, &innovIds, &lastInnovId, weightExtremumInit);
+		Genome newGenome(nbInput, nbOutput, &innovIds, &lastInnovId, weightExtremumInit);
 		newGenome.nodes = genomes[fitterGenomeId].nodes;
 		newGenome.connections = genomes[fitterGenomeId].connections;
 		newGenome.speciesId = genomes[fitterGenomeId].speciesId;
@@ -260,7 +260,7 @@ void Population::crossover(bool elitism) {
 			int iParent2 = selectParent(iSpe);
 			
 			// clone the fitter
-			Genome newGenome(nbInput, nbOutput, nbHiddenInit, probConnInit, &innovIds, &lastInnovId, weightExtremumInit);
+				Genome newGenome(nbInput, nbOutput, &innovIds, &lastInnovId, weightExtremumInit);
 			int iMainParent;
 			int iSecondParent;
 			if (genomes[iParent1].fitness > genomes[iParent2].fitness) {
@@ -275,16 +275,24 @@ void Population::crossover(bool elitism) {
 			newGenome.connections = genomes[iMainParent].connections;
 			newGenome.speciesId = iSpe;
 			
-			// connections shared by both of the parents must be randomly wheighted
-			for (int iMainParentConn = 0; iMainParentConn < (int) genomes[iMainParent].connections.size(); iMainParentConn++) {
-				for (int iSecondParentConn = 0; iSecondParentConn < (int) genomes[iSecondParent].connections.size(); iSecondParentConn++) {
-					if (genomes[iMainParent].connections[iMainParentConn].innovId == genomes[iSecondParent].connections[iSecondParentConn].innovId) {
-						if (rand() % 2 == 0) {	// 50 % of chance for each parent, newGenome already have the wheight of MainParent
-							newGenome.connections[iMainParentConn].weight = genomes[iSecondParent].connections[iSecondParentConn].weight;
+				// connections shared by both parents: random weight pick, enabled state per NEAT rules
+				for (int iMainParentConn = 0; iMainParentConn < (int) genomes[iMainParent].connections.size(); iMainParentConn++) {
+					for (int iSecondParentConn = 0; iSecondParentConn < (int) genomes[iSecondParent].connections.size(); iSecondParentConn++) {
+						if (genomes[iMainParent].connections[iMainParentConn].innovId == genomes[iSecondParent].connections[iSecondParentConn].innovId) {
+							// weight: pick randomly from either parent (already main's by default)
+							if (rand() % 2 == 0) {
+								newGenome.connections[iMainParentConn].weight = genomes[iSecondParent].connections[iSecondParentConn].weight;
+							}
+							// enabled: if disabled in either parent, 75% chance stays disabled
+							bool eitherDisabled = !genomes[iMainParent].connections[iMainParentConn].enabled || !genomes[iSecondParent].connections[iSecondParentConn].enabled;
+							if (eitherDisabled) {
+								if ((float) rand() / (float) RAND_MAX < 0.75f) {
+									newGenome.connections[iMainParentConn].enabled = false;
+								}
+							}
 						}
 					}
 				}
-			}
 			
 			newGenomes.push_back(newGenome);
 		}
@@ -293,7 +301,7 @@ void Population::crossover(bool elitism) {
 	int previousSize = (int) newGenomes.size();
 	// add genomes if some are missing
 	for (int k = 0; k < popSize - previousSize; k++) {
-		newGenomes.push_back(Genome(nbInput, nbOutput, nbHiddenInit, probConnInit, &innovIds, &lastInnovId, weightExtremumInit));
+			newGenomes.push_back(Genome(nbInput, nbOutput, &innovIds, &lastInnovId, weightExtremumInit));
 	}
 	
 	// or remove some genomes if there is too many genomes
@@ -343,7 +351,7 @@ int Population::selectParent(int iSpe) {
 
 void Population::mutate(float mutateWeightThresh, float mutateWeightFullChangeThresh, float mutateWeightFactor, float addConnectionThresh, int maxIterationsFindConnectionThresh, float reactivateConnectionThresh, float addNodeThresh, int maxIterationsFindNodeThresh) {
 	for (int i = 0; i < popSize; i++) {
-		genomes[i].mutate(&innovIds, &lastInnovId, areRecurrentConnectionsAllowed, mutateWeightThresh, mutateWeightFullChangeThresh, mutateWeightFactor, addConnectionThresh, maxIterationsFindConnectionThresh, reactivateConnectionThresh, addNodeThresh, maxIterationsFindNodeThresh);
+		genomes[i].mutate(&innovIds, &lastInnovId, mutateWeightThresh, mutateWeightFullChangeThresh, mutateWeightFactor, addConnectionThresh, maxIterationsFindConnectionThresh, reactivateConnectionThresh, addNodeThresh, maxIterationsFindNodeThresh);
 	}
 }
 
@@ -359,15 +367,6 @@ void Population::printInfo(bool extendedGlobal, bool printSpecies, bool printGen
 		std::cout << "	" << "	" << "Number of inputs: " << nbInput << std::endl;
 		std::cout << "	" << "	" << "Number of outputs: " << nbOutput << std::endl;
 		std::cout << "	" << "	" << "Speciation threshold: " << speciationThresh << std::endl;
-		std::cout << "	" << "	" << "Are recurrent connections allowed: ";
-		if (areRecurrentConnectionsAllowed) {
-			std::cout << "yes" << std::endl;
-		} else {
-			std::cout << "no" << std::endl;
-		}
-		std::cout << "	" << "	" << "When initializing a new genome" << std::endl;
-		std::cout << "	" << "	" << "	" << "Number of hidden nodes: " << nbHiddenInit << std::endl;
-		std::cout << "	" << "	" << "	" << "Proability of a connection to be created: " << probConnInit << std::endl;
 		std::cout << "	" << "	" << "	" << "Weight bounds: " << weightExtremumInit << std::endl;
 	
 	}
@@ -419,17 +418,14 @@ void Population::save(const std::string filepath){
 		fileobj << lastInnovId << "\n";
 		fileobj << popSize << "\n";
 		fileobj << speciationThresh << "\n";
-		fileobj << threshGensSinceImproved << "\n";
-		fileobj << nbInput << "\n";
-		fileobj << nbOutput << "\n";
-		fileobj << nbHiddenInit << "\n";
-		fileobj << probConnInit << "\n";
-		fileobj << areRecurrentConnectionsAllowed << "\n";
-		fileobj << weightExtremumInit << "\n";
-		fileobj << generation << "\n";
-		fileobj << avgFitness << "\n";
-		fileobj << avgFitnessAdjusted << "\n";
-		fileobj << fitterGenomeId << "\n";
+			fileobj << threshGensSinceImproved << "\n";
+			fileobj << nbInput << "\n";
+			fileobj << nbOutput << "\n";
+			fileobj << weightExtremumInit << "\n";
+			fileobj << generation << "\n";
+			fileobj << avgFitness << "\n";
+			fileobj << avgFitnessAdjusted << "\n";
+			fileobj << fitterGenomeId << "\n";
 
 		for (int k = 0; k < (int) genomes.size(); k++){
 			fileobj << genomes[k].fitness << "\n";
@@ -446,11 +442,11 @@ void Population::save(const std::string filepath){
 
 			for (int j = 0; j < (int) genomes[k].connections.size(); j++){
 				fileobj << genomes[k].connections[j].innovId << ",";
-				fileobj << genomes[k].connections[j].inNodeId << ",";
-				fileobj << genomes[k].connections[j].outNodeId << ",";
-				fileobj << genomes[k].connections[j].weight << ",";
-				fileobj << genomes[k].connections[j].enabled << ",";
-				fileobj << genomes[k].connections[j].isRecurrent << ",";
+					fileobj << genomes[k].connections[j].inNodeId << ",";
+					fileobj << genomes[k].connections[j].outNodeId << ",";
+					fileobj << genomes[k].connections[j].weight << ",";
+					fileobj << genomes[k].connections[j].enabled << ",";
+					fileobj << 0 << ",";	// isRecurrent placeholder, always false in canonical NEAT
 			}
 			fileobj << "\n";
 		}
@@ -526,24 +522,6 @@ void Population::load(const std::string filepath){
 			throw 0;
 		}
 		if (getline(fileobj, line)){
-			nbHiddenInit = stoi(line);
-		} else {
-			std::cout << "Error while loading model" << std::endl;
-			throw 0;
-		}
-		if (getline(fileobj, line)){
-			probConnInit = stof(line);
-		} else {
-			std::cout << "Error while loading model" << std::endl;
-			throw 0;
-		}
-		if (getline(fileobj, line)){
-			areRecurrentConnectionsAllowed = (line == "1");
-		} else {
-			std::cout << "Error while loading model" << std::endl;
-			throw 0;
-		}
-		if (getline(fileobj, line)){
 			weightExtremumInit = stof(line);
 		} else {
 			std::cout << "Error while loading model" << std::endl;
@@ -575,7 +553,7 @@ void Population::load(const std::string filepath){
 		}
 		genomes.clear();
 		while (getline(fileobj, line)){
-			genomes.push_back(Genome(nbInput, nbOutput, nbHiddenInit, probConnInit, &innovIds, &lastInnovId, weightExtremumInit));
+			genomes.push_back(Genome(nbInput, nbOutput, &innovIds, &lastInnovId, weightExtremumInit));
 
 			genomes.back().fitness = stof(line);
 			if (getline(fileobj, line)){
@@ -669,7 +647,7 @@ void Population::load(const std::string filepath){
 						std::cout << "Error while loading model" << std::endl;
 						throw 0;
 					}
-					genomes.back().connections.back().isRecurrent = (line.substr(0, pos) == "1");
+					genomes.back().connections.back().isRecurrent = false;
 
 						line = line.substr(pos + 1);
 						pos = line.find(',');

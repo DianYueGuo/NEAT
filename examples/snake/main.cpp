@@ -324,13 +324,10 @@ int main() {
     int popSize = 50;
     int nbInput = 14;
     int nbOutput = 3;
-    int nbHiddenInit = 3;
-    float probConnInit = 0.4f;
-    bool areRecurrentConnectionsAllowed = false;
     float weightExtremumInit = 20.0f;
     float speciationThreshInit = 100.0f;
     int threshGensSinceImproved = 15;
-    neat::Population pop(popSize, nbInput, nbOutput, nbHiddenInit, probConnInit, areRecurrentConnectionsAllowed, weightExtremumInit, speciationThreshInit, threshGensSinceImproved);
+    neat::Population pop(popSize, nbInput, nbOutput, weightExtremumInit, speciationThreshInit, threshGensSinceImproved);
     
     int target = 5;
     int targetThresh = 0;

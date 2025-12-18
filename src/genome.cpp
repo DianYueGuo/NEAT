@@ -5,11 +5,8 @@
 
 using namespace neat;
 
-Genome::Genome(int nbInput, int nbOutput, int nbHiddenInit, float probConnInit, std::vector<std::vector<int>>* innovIds, int* lastInnovId, float weightExtremumInit): weightExtremumInit(weightExtremumInit), nbInput(nbInput), nbOutput(nbOutput){
+Genome::Genome(int nbInput, int nbOutput, std::vector<std::vector<int>>* innovIds, int* lastInnovId, float weightExtremumInit): weightExtremumInit(weightExtremumInit), nbInput(nbInput), nbOutput(nbOutput){
 	speciesId = -1;
-	// Initial hidden nodes and probabilistic connectivity are ignored for canonical NEAT initialization.
-	(void) nbHiddenInit;
-	(void) probConnInit;
 	// NODES
 	// bias
 	nodes.push_back(Node(0, 0));
@@ -112,8 +109,7 @@ void Genome::getOutputs(float outputs[]) {
 }
 
 
-void Genome::mutate(std::vector<std::vector<int>>* innovIds, int* lastInnovId, bool areRecurrentConnectionsAllowed, float mutateWeightThresh, float mutateWeightFullChangeThresh, float mutateWeightFactor, float addConnectionThresh, int maxIterationsFindConnectionThresh, float reactivateConnectionThresh, float addNodeThresh, int maxIterationsFindNodeThresh) {
-	(void) areRecurrentConnectionsAllowed;	// recurrent links are disallowed
+void Genome::mutate(std::vector<std::vector<int>>* innovIds, int* lastInnovId, float mutateWeightThresh, float mutateWeightFullChangeThresh, float mutateWeightFactor, float addConnectionThresh, int maxIterationsFindConnectionThresh, float reactivateConnectionThresh, float addNodeThresh, int maxIterationsFindNodeThresh) {
 	// ### WEIGHTS ###
 	float randomNb = (float) rand() / (float) RAND_MAX;
 	while (randomNb < 1.0f + 1e-10 && randomNb > 1.0f - 1e-10) {	// == 1
@@ -130,7 +126,7 @@ void Genome::mutate(std::vector<std::vector<int>>* innovIds, int* lastInnovId, b
 	}	// generate a random value in [0,1)
 	if (randomNb < addConnectionThresh) {
 		// adding a conection
-		addConnection(innovIds, lastInnovId, maxIterationsFindConnectionThresh, areRecurrentConnectionsAllowed, reactivateConnectionThresh);
+		addConnection(innovIds, lastInnovId, maxIterationsFindConnectionThresh, reactivateConnectionThresh);
 	}
 	
 	// ### NODES ###
@@ -140,7 +136,7 @@ void Genome::mutate(std::vector<std::vector<int>>* innovIds, int* lastInnovId, b
 	}	// generate a random value in [0,1)
 	if (randomNb < addNodeThresh) {
 		// adding a node
-		addNode(innovIds, lastInnovId, maxIterationsFindNodeThresh, areRecurrentConnectionsAllowed);
+		addNode(innovIds, lastInnovId, maxIterationsFindNodeThresh);
 	}
 }
 
@@ -165,8 +161,7 @@ void Genome::mutateWeights(float mutateWeightFullChangeThresh, float mutateWeigh
 	}
 }
 
-bool Genome::addConnection(std::vector<std::vector<int>>* innovIds, int* lastInnovId, int maxIterationsFindConnectionThresh, bool areRecurrentConnectionsAllowed, float reactivateConnectionThresh) {	// return true if the process ended well, false in the other case
-	(void) areRecurrentConnectionsAllowed;	// recurrent links are disallowed for canonical NEAT
+bool Genome::addConnection(std::vector<std::vector<int>>* innovIds, int* lastInnovId, int maxIterationsFindConnectionThresh, float reactivateConnectionThresh) {	// return true if the process ended well, false in the other case
 	// find valid node pair
 	int iterationNb = 0;
 	int isValid = 0;
@@ -175,7 +170,7 @@ bool Genome::addConnection(std::vector<std::vector<int>>* innovIds, int* lastInn
 	while (iterationNb < maxIterationsFindConnectionThresh && isValid == 0) {
 		inNodeId = rand() % (int) nodes.size();
 		outNodeId = rand() % (int) nodes.size();
-		isValid = isValidNewConnection(inNodeId, outNodeId, areRecurrentConnectionsAllowed);
+		isValid = isValidNewConnection(inNodeId, outNodeId);
 		iterationNb++;
 	}
 	
@@ -213,8 +208,7 @@ bool Genome::addConnection(std::vector<std::vector<int>>* innovIds, int* lastInn
 		}
 }
 
-int Genome::isValidNewConnection(int inNodeId, int outNodeId, bool areRecurrentConnectionsAllowed) {	// 0 = not valid connection, 1 = valid connection, 2 = connection currently disabled
-	(void) areRecurrentConnectionsAllowed;	// recurrent links are disallowed
+int Genome::isValidNewConnection(int inNodeId, int outNodeId) {	// 0 = not valid connection, 1 = valid connection, 2 = connection currently disabled
 	if (inNodeId == outNodeId) return 0;	// the connection boucle itself
 	if (nodes[inNodeId].layer == nodes[outNodeId].layer) return 0;	// the connection link to nodes on the same layer
 	for (int i = 0; i < (int) connections.size(); i++) {
@@ -232,8 +226,7 @@ int Genome::isValidNewConnection(int inNodeId, int outNodeId, bool areRecurrentC
 	return 1;	// test done : it is a valid connection !
 }
 
-bool Genome::addNode(std::vector<std::vector<int>>* innovIds, int* lastInnovId, int maxIterationsFindNodeThresh, bool areRecurrentConnectionsAllowed) {	// return true = node created, false = nothing created
-	(void) areRecurrentConnectionsAllowed;	// recurrent links are disallowed
+bool Genome::addNode(std::vector<std::vector<int>>* innovIds, int* lastInnovId, int maxIterationsFindNodeThresh) {	// return true = node created, false = nothing created
 	// choose at random an enabled forward connection
 	if ((int) connections.size() > 0) {
 		int iConn = rand() % (int) connections.size();
@@ -254,14 +247,13 @@ bool Genome::addNode(std::vector<std::vector<int>>* innovIds, int* lastInnovId, 
 			int inNodeId = connections[iConn].inNodeId;
 			int outNodeId = newNodeId;
 			int innovId = getInnovId(innovIds, lastInnovId, inNodeId, outNodeId);
-			float weight = connections[iConn].weight;
-			connections.push_back(Connection(innovId, inNodeId, outNodeId, weight, true, false));
+			connections.push_back(Connection(innovId, inNodeId, outNodeId, 1.0f, true, false));	// NEAT sets this to 1.0
 			
 			// build second connection
 			inNodeId = newNodeId;
 			outNodeId = connections[iConn].outNodeId;
 			innovId = getInnovId(innovIds, lastInnovId, inNodeId, outNodeId);
-			weight = (float) rand() / (float) RAND_MAX * 2 * weightExtremumInit - weightExtremumInit;	// random number in [-weightExtremumInit; weightExtremumInit]
+			float weight = connections[iConn].weight;	// preserve original weight on second link
 			connections.push_back(Connection(innovId, inNodeId, outNodeId, weight, true, false));
 			
 			// update layers

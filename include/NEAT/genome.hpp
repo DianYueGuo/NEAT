@@ -13,9 +13,9 @@ class Genome{
 	
 		int getInnovId(std::vector<std::vector<int>>* innovIds, int* lastInnovId, int inNodeId, int outNodeId);
 		void mutateWeights(float mutateWeightFullChangeThresh, float mutateWeightFactor, float mutateWeightThresh);
-		bool addConnection(std::vector<std::vector<int>>* innovIds, int* lastInnovId, int maxIterationsFindConnectionThresh, bool areRecurrentConnectionsAllowed, float reactivateConnectionThresh);
-		int isValidNewConnection(int inNodeId, int outNodeId, bool areRecurrentConnectionsAllowed);
-		bool addNode(std::vector<std::vector<int>>* innovIds, int* lastInnovId, int maxIterationsFindNodeThresh, bool areRecurrentConnectionsAllowed);
+		bool addConnection(std::vector<std::vector<int>>* innovIds, int* lastInnovId, int maxIterationsFindConnectionThresh, float reactivateConnectionThresh);
+		int isValidNewConnection(int inNodeId, int outNodeId);
+		bool addNode(std::vector<std::vector<int>>* innovIds, int* lastInnovId, int maxIterationsFindNodeThresh);
 		void updateLayersRec(int nodeId);
 	public:
 		int nbInput;
@@ -26,11 +26,11 @@ class Genome{
 		std::vector<Node> nodes;
 		std::vector<Connection> connections;
 		
-		Genome(int nbInput, int nbOutput, int nbHiddenInit, float probConnInit, std::vector<std::vector<int>>* innovIds, int* lastInnovId, float weightExtremumInit = 20.0f);
+		Genome(int nbInput, int nbOutput, std::vector<std::vector<int>>* innovIds, int* lastInnovId, float weightExtremumInit = 20.0f);
 		void loadInputs(float inputs[]);
 		void runNetwork(float activationFn(float input));
 		void getOutputs(float outputs[]);
-		void mutate(std::vector<std::vector<int>>* innovIds, int* lastInnovId, bool areRecurrentConnectionsAllowed = false, float mutateWeightThresh = 0.8f, float mutateWeightFullChangeThresh = 0.1f, float mutateWeightFactor = 0.1f, float addConnectionThresh = 0.05f, int maxIterationsFindConnectionThresh = 20, float reactivateConnectionThresh = 0.25f, float addNodeThresh = 0.03f, int maxIterationsFindNodeThresh = 20);
+		void mutate(std::vector<std::vector<int>>* innovIds, int* lastInnovId, float mutateWeightThresh = 0.9f, float mutateWeightFullChangeThresh = 0.1f, float mutateWeightFactor = 0.5f, float addConnectionThresh = 0.05f, int maxIterationsFindConnectionThresh = 20, float reactivateConnectionThresh = 0.25f, float addNodeThresh = 0.03f, int maxIterationsFindNodeThresh = 20);
 		// Disabled drawing for engine integration without SFML dependency.
         void drawNetwork();
 };
