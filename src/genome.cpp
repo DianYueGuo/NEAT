@@ -228,11 +228,7 @@ int Genome::isValidNewConnection(int inNodeId, int outNodeId, bool areRecurrentC
 		}
 	}
 	if (nodes[inNodeId].layer > nodes[outNodeId].layer)	{
-		if (areRecurrentConnectionsAllowed) {
-			return 3;	// recurrent connections are allowed
-		} else {
-			return 0;	// recurrent connection are disallowed
-		}
+		return 0;	// recurrent connection are disallowed for canonical NEAT
 	}
 	return 1;	// test done : it is a valid connection !
 }
@@ -273,33 +269,7 @@ bool Genome::addNode(std::vector<std::vector<int>>* innovIds, int* lastInnovId, 
 			nodes[connections[iConn].outNodeId].layer = nodes[newNodeId].layer + 1;	// update outNodeId layer
 			updateLayersRec(connections[iConn].outNodeId);	// recursively update layers
 			
-			// output nodes can have different nodes after updating layers: let's give output nodes the same output layer, the maximum one
-			int maxLayer = nodes[1 + nbInput + nbOutput].layer;
-			for (int i = 1 + nbInput + nbOutput + 1; i < (int) nodes.size(); i++) {
-				if (nodes[i].layer > maxLayer) {
-					maxLayer = nodes[i].layer;
-				}
-			}
-			for (int i = 1 + nbInput; i < 1 + nbInput + nbOutput; i++) {
-				nodes[i].layer = maxLayer + 1;
-			}
-			
-			// recurrent connections can have moved during the process and can now be disabled or non-recurent: check Neat Ai's youtube video to understand the phenomenon ("Neat Ai does XOR Mutate" at timecode 5:40)
-			if (areRecurrentConnectionsAllowed) {	// if potentially there is recurrent connections
-				for (int i = 0; i < (int) connections.size(); i++) {
-					if (connections[i].isRecurrent) {
-						if (connections[i].enabled && nodes[connections[i].inNodeId].layer == nodes[connections[i].outNodeId].layer) {	// tthe connection is now illegal and whould be disabled
-							connections[i].enabled = false;
-						} else {
-							if (nodes[connections[i].inNodeId].layer < nodes[connections[i].outNodeId].layer) {	// the connection became non-recurrent
-								connections[i].isRecurrent = false;
-							}
-						}
-					}
-				}
-			}
-			
-			return true;
+	return true;
 		} else {
 			std::cout << "Error : no active connection found in Genome::addNode" << std::endl;
 			return false;	// no active connection found
