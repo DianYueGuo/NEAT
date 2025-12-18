@@ -54,10 +54,8 @@ void drawPlaygroundSFML(struct args* snakeArgs, sf::RenderWindow* window, float 
     sf::Time ups = sf::seconds(timeUpsSeconds);
     
     while (window->isOpen() && accumulator < ups) {
-        sf::Event event;
-        while (window->pollEvent(event))
-        {
-            if (event.type == sf::Event::Closed) {
+        while (auto event = window->pollEvent()) {
+            if (event->is<sf::Event::Closed>()) {
                 window->close();
             }
         }
@@ -281,7 +279,7 @@ float snakeProcess(float inputs[], float outputs[], void* snakeArgs_void) {
 }
 
 void playGame(neat::Population* pop, int genomeId, int nbInput, int nbOutput, float activationFn(float input), int maxIterationsThresh, bool displayConsole = true, sf::Vector2u windowSize = {800, 600}, float timeUpsSeconds = 0.7f) {
-    sf::RenderWindow window(sf::VideoMode(windowSize.x, windowSize.y), "NEAT - Titofra");
+    sf::RenderWindow window(sf::VideoMode(windowSize), "NEAT - Titofra");
     
     /* Print a game played by the genome of id genomeId in population pop */
     args snakeArgs;
@@ -353,8 +351,6 @@ int main() {
     
     // print information and draw the network of the fitter genome
     pop.printInfo(true, false, false, false);
-    pop.drawNetwork(pop.fitterGenomeId);
-    
     // play a game by the fitter genome
     bool displayInConsole = false;
     playGame(&pop, pop.fitterGenomeId, nbInput, nbOutput, sigmoid, 500, displayInConsole, {800, 600}, 0.12f);
