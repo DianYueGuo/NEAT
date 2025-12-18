@@ -1,4 +1,5 @@
 #include <NEAT/population.hpp>
+#include <unordered_map>
 #include <sstream>
 
 using namespace neat;
@@ -124,75 +125,58 @@ void Population::speciate(int target, int targetThresh, float stepThresh, float 
 }
 
 float Population::compareGenomes(int ig1, int ig2, float a, float b, float c) {
+	std::unordered_map<int, std::pair<float, bool>> genes1;
+	std::unordered_map<int, std::pair<float, bool>> genes2;
 	int maxInnovId1 = 0;
-	std::vector<int> connEnabled1;
-	for (int i = 0; i < (int) genomes[ig1].connections.size(); i++) {
-		if (genomes[ig1].connections[i].enabled) {
-			connEnabled1.push_back(i);
-			if (genomes[ig1].connections[i].innovId > maxInnovId1) {
-				maxInnovId1 = genomes[ig1].connections[i].innovId;
-			}
-		}
-	}
-	
 	int maxInnovId2 = 0;
-	std::vector<int> connEnabled2;
-	for (int i = 0; i < (int) genomes[ig2].connections.size(); i++) {
-		if (genomes[ig2].connections[i].enabled) {
-			connEnabled2.push_back(i);
-			if (genomes[ig2].connections[i].innovId > maxInnovId2) {
-				maxInnovId2 = genomes[ig2].connections[i].innovId;
-			}
+	for (const auto& conn : genomes[ig1].connections) {
+		genes1[conn.innovId] = {conn.weight, conn.enabled};
+		if (conn.innovId > maxInnovId1) {
+			maxInnovId1 = conn.innovId;
 		}
 	}
-	
+	for (const auto& conn : genomes[ig2].connections) {
+		genes2[conn.innovId] = {conn.weight, conn.enabled};
+		if (conn.innovId > maxInnovId2) {
+			maxInnovId2 = conn.innovId;
+		}
+	}
+
 	int excessGenes = 0;
 	int disjointGenes = 0;
 	float sumDiffWeights = 0.0f;
 	int nbCommonGenes = 0;
-	
-	for (int i1 = 0; i1 < (int) connEnabled1.size(); i1++) {
-		if (genomes[ig1].connections[connEnabled1[i1]].innovId > maxInnovId2) {
-			excessGenes += 1;
-		} else {
-			int i2 = 0;
-			
-			while (i2 < (int) connEnabled2.size() && genomes[ig2].connections[connEnabled2[i2]].innovId != genomes[ig1].connections[connEnabled1[i1]].innovId) {
-				i2++;
-			}
-			if (i2 == (int) connEnabled2.size()) {
-				disjointGenes += 1;
+
+	for (const auto& kv : genes1) {
+		int innov = kv.first;
+		if (genes2.find(innov) == genes2.end()) {
+			if (innov > maxInnovId2) {
+				excessGenes++;
 			} else {
-				nbCommonGenes += 1;
-				float diff = genomes[ig2].connections[connEnabled2[i2]].weight - genomes[ig1].connections[connEnabled1[i1]].weight;
-				if (diff > 0) {
-					sumDiffWeights += diff;
-				} else {
-					sumDiffWeights += -1 * diff;
-				}
+				disjointGenes++;
 			}
-		}
-	}
-	
-	for (int i2 = 0; i2 < (int) connEnabled2.size(); i2++) {
-		if (genomes[ig2].connections[connEnabled2[i2]].innovId > maxInnovId1) {
-			excessGenes += 1;
 		} else {
-			int i1 = 0;
-			while (i1 < (int) connEnabled1.size() && genomes[ig2].connections[connEnabled2[i2]].innovId != genomes[ig1].connections[connEnabled1[i1]].innovId) {
-				i1++;
-			}
-			if (i1 == (int) connEnabled1.size()) {
-				disjointGenes += 1;
+			nbCommonGenes++;
+			sumDiffWeights += std::fabs(genes2[innov].first - kv.second.first);
+		}
+	}
+	for (const auto& kv : genes2) {
+		int innov = kv.first;
+		if (genes1.find(innov) == genes1.end()) {
+			if (innov > maxInnovId1) {
+				excessGenes++;
+			} else {
+				disjointGenes++;
 			}
 		}
 	}
-	
+
+	int N = std::max((int) genes1.size(), (int) genes2.size());
+	if (N < 1) N = 1;
 	if (nbCommonGenes > 0) {
-		return (a * (float) excessGenes + b * (float) disjointGenes) / (float) std::max((int) connEnabled1.size(), (int) connEnabled2.size()) + c * sumDiffWeights / (float) nbCommonGenes;
-	} else {
-		return std::numeric_limits<float>::max();	// TODO: is there a better way?
+		return (a * (float) excessGenes + b * (float) disjointGenes) / (float) N + c * (sumDiffWeights / (float) nbCommonGenes);
 	}
+	return std::numeric_limits<float>::max();
 }
 
 void Population::updateFitnesses() {
@@ -274,9 +258,18 @@ void Population::crossover(bool elitism) {
 			
 			newGenome.connections = genomes[iMainParent].connections;
 			newGenome.speciesId = iSpe;
+
+			// if gene disabled in fitter parent, keep it disabled 75% of the time
+			for (int iConn = 0; iConn < (int) newGenome.connections.size(); iConn++) {
+				if (!genomes[iMainParent].connections[iConn].enabled) {
+					if ((float) rand() / (float) RAND_MAX < 0.75f) {
+						newGenome.connections[iConn].enabled = false;
+					}
+				}
+			}
 			
-				// connections shared by both parents: random weight pick, enabled state per NEAT rules
-				for (int iMainParentConn = 0; iMainParentConn < (int) genomes[iMainParent].connections.size(); iMainParentConn++) {
+			// connections shared by both parents: random weight pick, enabled state per NEAT rules
+			for (int iMainParentConn = 0; iMainParentConn < (int) genomes[iMainParent].connections.size(); iMainParentConn++) {
 					for (int iSecondParentConn = 0; iSecondParentConn < (int) genomes[iSecondParent].connections.size(); iSecondParentConn++) {
 						if (genomes[iMainParent].connections[iMainParentConn].innovId == genomes[iSecondParent].connections[iSecondParentConn].innovId) {
 							// weight: pick randomly from either parent (already main's by default)
@@ -388,17 +381,14 @@ void Population::printInfo(bool extendedGlobal, bool printSpecies, bool printGen
 		for (int i = 0; i < popSize; i++) {
 			std::cout << "	" << "	" << i << "	" << genomes[i].fitness << "	" << genomes[i].speciesId << std::endl;
 			if (extendedGenomes) {
-				for (int k = 0; k < (int) genomes[i].connections.size(); k++) {
-					std::cout << "	" << "	" << "	" << genomes[i].connections[k].inNodeId << " -> " << genomes[i].connections[k].outNodeId << "	(W: " << genomes[i].connections[k].weight << ", Innov: " << genomes[i].connections[k].innovId << ")";
-					if (genomes[i].connections[k].isRecurrent) {
-						std::cout << " R ";
+					for (int k = 0; k < (int) genomes[i].connections.size(); k++) {
+						std::cout << "	" << "	" << "	" << genomes[i].connections[k].inNodeId << " -> " << genomes[i].connections[k].outNodeId << "	(W: " << genomes[i].connections[k].weight << ", Innov: " << genomes[i].connections[k].innovId << ")";
+						if (!genomes[i].connections[k].enabled) {
+							std::cout << " D ";
+						}
+						std::cout << std::endl;
 					}
-					if (!genomes[i].connections[k].enabled) {
-						std::cout << " D ";
-					}
-					std::cout << std::endl;
 				}
-			}
 		}
 	}
 }
@@ -442,18 +432,17 @@ void Population::save(const std::string filepath){
 
 			for (int j = 0; j < (int) genomes[k].connections.size(); j++){
 				fileobj << genomes[k].connections[j].innovId << ",";
-					fileobj << genomes[k].connections[j].inNodeId << ",";
-					fileobj << genomes[k].connections[j].outNodeId << ",";
-					fileobj << genomes[k].connections[j].weight << ",";
-					fileobj << genomes[k].connections[j].enabled << ",";
-					fileobj << 0 << ",";	// isRecurrent placeholder, always false in canonical NEAT
+				fileobj << genomes[k].connections[j].inNodeId << ",";
+				fileobj << genomes[k].connections[j].outNodeId << ",";
+				fileobj << genomes[k].connections[j].weight << ",";
+				fileobj << genomes[k].connections[j].enabled << ",";
 			}
 			fileobj << "\n";
 		}
 
-		fileobj.close();
+			fileobj.close();
+		}
 	}
-}
 
 void Population::load(const std::string filepath){
 	std::ifstream fileobj(filepath);
@@ -601,10 +590,10 @@ void Population::load(const std::string filepath){
 				std::cout << "Error while loading model" << std::endl;
 				throw 0;
 				}
-				if (getline(fileobj, line)){
-					genomes.back().connections.clear();
-					pos = line.find(',');
-					while (pos != std::string::npos) {
+			if (getline(fileobj, line)){
+				genomes.back().connections.clear();
+				pos = line.find(',');
+				while (pos != std::string::npos) {
 					genomes.back().connections.push_back(Connection());
 
 					genomes.back().connections.back().innovId = stoi(line.substr(0, pos));
@@ -643,31 +632,22 @@ void Population::load(const std::string filepath){
 
 					line = line.substr(pos + 1);
 					pos = line.find(',');
-					if (pos == std::string::npos) {
-						std::cout << "Error while loading model" << std::endl;
-						throw 0;
-					}
-					genomes.back().connections.back().isRecurrent = false;
-
-						line = line.substr(pos + 1);
-						pos = line.find(',');
-					}
-					// Enforce feed-forward canonical NEAT on load: drop recurrence and disable backward links.
-					for (auto& conn : genomes.back().connections) {
-						conn.isRecurrent = false;
-						if (conn.inNodeId < 0 || conn.inNodeId >= (int) genomes.back().nodes.size() ||
-						    conn.outNodeId < 0 || conn.outNodeId >= (int) genomes.back().nodes.size()) {
-							conn.enabled = false;
-							continue;
-						}
-						if (genomes.back().nodes[conn.inNodeId].layer >= genomes.back().nodes[conn.outNodeId].layer) {
-							conn.enabled = false;
-						}
-					}
-				} else {
-					std::cout << "Error while loading model" << std::endl;
-					throw 0;
 				}
+				// Enforce feed-forward canonical NEAT on load: drop recurrence and disable backward links.
+				for (auto& conn : genomes.back().connections) {
+					if (conn.inNodeId < 0 || conn.inNodeId >= (int) genomes.back().nodes.size() ||
+					    conn.outNodeId < 0 || conn.outNodeId >= (int) genomes.back().nodes.size()) {
+						conn.enabled = false;
+						continue;
+					}
+					if (genomes.back().nodes[conn.inNodeId].layer >= genomes.back().nodes[conn.outNodeId].layer) {
+						conn.enabled = false;
+					}
+				}
+			} else {
+				std::cout << "Error while loading model" << std::endl;
+				throw 0;
+			}
 			}
 
 		fileobj.close();

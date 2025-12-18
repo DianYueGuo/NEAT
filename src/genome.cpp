@@ -23,13 +23,13 @@ Genome::Genome(int nbInput, int nbOutput, std::vector<std::vector<int>>* innovId
 	
 	// CONNECTIONS: fully connect inputs (and bias) to outputs initially
 	for (int inNodeId = 0; inNodeId < nbInput + 1; inNodeId++) {
-		for (int outNodeId = nbInput + 1; outNodeId < nbInput + 1 + nbOutput; outNodeId++) {
-			int innovId = getInnovId(innovIds, lastInnovId, inNodeId, outNodeId);
-			float weight = (float) rand() / (float) RAND_MAX * 2 * weightExtremumInit - weightExtremumInit;	// random number in [-weightExtremumInit; weightExtremumInit]
-			connections.push_back(Connection(innovId, inNodeId, outNodeId, weight, true, false));
+			for (int outNodeId = nbInput + 1; outNodeId < nbInput + 1 + nbOutput; outNodeId++) {
+				int innovId = getInnovId(innovIds, lastInnovId, inNodeId, outNodeId);
+				float weight = (float) rand() / (float) RAND_MAX * 2 * weightExtremumInit - weightExtremumInit;	// random number in [-weightExtremumInit; weightExtremumInit]
+				connections.push_back(Connection(innovId, inNodeId, outNodeId, weight, true));
+			}
 		}
 	}
-}
 
 int Genome::getInnovId(std::vector<std::vector<int>>* innovIds, int* lastInnovId, int inNodeId, int outNodeId) {
 	/* get the innovation id of the connection inNodeId -> outNodeId. Create one if needed */
@@ -63,39 +63,42 @@ void Genome::loadInputs(float inputs[]) {
 
 
 void Genome::runNetwork(float activationFn(float input)) {
-	/* Process all sumInput and sumOutput. For that, it "scans" each layer from the inputs to the last hidden's layer to calculate sumInput with already known value. */ 
-	
 	// reset sums for non-input nodes
 	for (int i = nbInput + 1; i < (int) nodes.size(); i++) {
 		nodes[i].sumInput = 0;
 		nodes[i].sumOutput = 0;
 	}
 
-	int lastLayer = 0;
-	for (const auto& n : nodes) {
-		if (n.layer > lastLayer) {
-			lastLayer = n.layer;
+	// Kahn topological order (feed-forward edges only)
+	std::vector<int> indeg(nodes.size(), 0);
+	for (const auto& conn : connections) {
+		if (!conn.enabled) continue;
+		if (nodes[conn.inNodeId].layer >= nodes[conn.outNodeId].layer) continue;
+		indeg[conn.outNodeId]++;
+	}
+
+	std::vector<int> queue;
+	for (int i = 0; i < (int) nodes.size(); i++) {
+		if (indeg[i] == 0) {
+			queue.push_back(i);
 		}
 	}
 
-	for (int ilayer = 0; ilayer < lastLayer; ilayer++) {
-		// process sumInput
-		for (int i = 0; i < (int) connections.size(); i++) {
-			if (!connections[i].enabled) continue;	// connection disabled
-
-			int inLayer = nodes[connections[i].inNodeId].layer;
-			int outLayer = nodes[connections[i].outNodeId].layer;
-
-			if (inLayer != ilayer) continue;	// only process nodes in current layer
-			if (outLayer <= inLayer) continue;	// skip non-forward links
-
-			nodes[connections[i].outNodeId].sumInput += nodes[connections[i].inNodeId].sumOutput * connections[i].weight;
+	for (size_t idx = 0; idx < queue.size(); idx++) {
+		int nodeId = queue[idx];
+		// activate if not input/bias
+		if (nodeId > nbInput) {
+			nodes[nodeId].sumOutput = activationFn(nodes[nodeId].sumInput);
 		}
-		
-		// process sumOutput
-		for (int i = 1 + nbInput; i < (int) nodes.size(); i++) {	// for each node except inputs because sumOutput has already be calculated
-			if (nodes[i].layer == ilayer + 1) {
-				nodes[i].sumOutput = activationFn(nodes[i].sumInput);
+
+		for (const auto& conn : connections) {
+			if (!conn.enabled) continue;
+			if (nodes[conn.inNodeId].layer >= nodes[conn.outNodeId].layer) continue;
+			if (conn.inNodeId != nodeId) continue;
+			nodes[conn.outNodeId].sumInput += nodes[conn.inNodeId].sumOutput * conn.weight;
+			indeg[conn.outNodeId]--;
+			if (indeg[conn.outNodeId] == 0) {
+				queue.push_back(conn.outNodeId);
 			}
 		}
 	}
@@ -155,8 +158,11 @@ void Genome::mutateWeights(float mutateWeightFullChangeThresh, float mutateWeigh
 			// reset weight
 			connections[i].weight = (float) rand() / (float) RAND_MAX * 2 * weightExtremumInit - weightExtremumInit;
 		} else {
-			// perturb weight additively (closer to original NEAT small jitter)
-			connections[i].weight += ((float) rand() / (float) RAND_MAX * 2 * mutateWeightFactor - mutateWeightFactor);
+			// perturb weight with small Gaussian-ish jitter
+			float u1 = ((float) rand() + 1.0f) / ((float) RAND_MAX + 2.0f);
+			float u2 = ((float) rand() + 1.0f) / ((float) RAND_MAX + 2.0f);
+			float mag = std::sqrt(-2.0f * std::log(u1)) * std::cos(2.0f * 3.1415926f * u2);
+			connections[i].weight += mag * mutateWeightFactor;
 		}
 	}
 }
@@ -200,7 +206,7 @@ bool Genome::addConnection(std::vector<std::vector<int>>* innovIds, int* lastInn
 			} else {
 				int innovId = getInnovId(innovIds, lastInnovId, inNodeId, outNodeId);
 				float weight = (float) rand() / (float) RAND_MAX * 2 * weightExtremumInit - weightExtremumInit;	// random number in [-weightExtremumInit; weightExtremumInit]
-				connections.push_back(Connection(innovId, inNodeId, outNodeId, weight, true, false));
+				connections.push_back(Connection(innovId, inNodeId, outNodeId, weight, true));
 				return true;
 			}
 		} else {
@@ -247,14 +253,14 @@ bool Genome::addNode(std::vector<std::vector<int>>* innovIds, int* lastInnovId, 
 			int inNodeId = connections[iConn].inNodeId;
 			int outNodeId = newNodeId;
 			int innovId = getInnovId(innovIds, lastInnovId, inNodeId, outNodeId);
-			connections.push_back(Connection(innovId, inNodeId, outNodeId, 1.0f, true, false));	// NEAT sets this to 1.0
+			connections.push_back(Connection(innovId, inNodeId, outNodeId, 1.0f, true));	// NEAT sets this to 1.0
 			
 			// build second connection
 			inNodeId = newNodeId;
 			outNodeId = connections[iConn].outNodeId;
 			innovId = getInnovId(innovIds, lastInnovId, inNodeId, outNodeId);
 			float weight = connections[iConn].weight;	// preserve original weight on second link
-			connections.push_back(Connection(innovId, inNodeId, outNodeId, weight, true, false));
+			connections.push_back(Connection(innovId, inNodeId, outNodeId, weight, true));
 			
 			// update layers
 			nodes[newNodeId].layer = nodes[connections[iConn].inNodeId].layer + 1;	// update newNodeId layer
@@ -285,7 +291,7 @@ void Genome::updateLayersRec(int nodeId) {
         int baseLayer = nodes[current].layer;
 
         for (int iConn = 0; iConn < (int) connections.size(); iConn++) {
-            if (!connections[iConn].isRecurrent && connections[iConn].enabled && connections[iConn].inNodeId == current) {
+            if (connections[iConn].enabled && connections[iConn].inNodeId == current) {
                 int newNodeId = connections[iConn].outNodeId;
 				if (newNodeId < 0 || newNodeId >= static_cast<int>(nodes.size())) {
                     continue;
