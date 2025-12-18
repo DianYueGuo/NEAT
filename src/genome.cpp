@@ -12,6 +12,7 @@ Genome::Genome(int nbInput, int nbOutput, int nbHiddenInit, float probConnInit, 
 	// bias
 	nodes.push_back(Node(0, 0));
 	nodes[0].sumInput = 1;	// init value of the bias node
+	nodes[0].sumOutput = 1;	// bias output must also start at 1 to propagate
 	// input
 	for (int i = 1; i < nbInput + 1; i++) {
 		nodes.push_back(Node(i, 0));
