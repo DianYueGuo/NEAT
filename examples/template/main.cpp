@@ -72,9 +72,9 @@ int main() {
     bool elitism = false;    // if at each generation the fitter genome is conserve true, else false
     
     // for mutate
-    float mutateWeightThresh = 0.9f;    // probability of a connection's weight being mutated
+    float mutateWeightThresh = 0.8f;    // probability of a connection's weight being mutated
     float mutateWeightFullChangeThresh = 0.1f;    // probability of a connection's weight being fully changed
-    float mutateWeightFactor = 0.5f;    // additive jitter range in [-mutateWeightFactor, mutateWeightFactor]
+    float mutateWeightFactor = 0.1f;    // additive jitter std-like factor (small perturbation)
     float addConnectionThresh = 0.05f;  // probability of a connection being added
     int maxIterationsFindConnectionThresh = 20; // maximum number of iteration to found a valid connection to create
     float reactivateConnectionThresh = 0.25f;   // probability of a connection being re-enabled
