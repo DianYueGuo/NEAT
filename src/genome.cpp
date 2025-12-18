@@ -1,5 +1,4 @@
 #include <NEAT/genome.hpp>
-#include <SFML/Graphics.hpp>
 #include <vector>
 #include <iostream>
 #include <cmath>
