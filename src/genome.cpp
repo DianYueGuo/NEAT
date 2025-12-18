@@ -108,19 +108,15 @@ void Genome::runNetwork(float activationFn(float input)) {
 	for (int ilayer = 0; ilayer < lastLayer; ilayer++) {
 		// process sumInput
 		for (int i = 0; i < (int) connections.size(); i++) {
-			if (connections[i].enabled) {	// if the connections still exist
-				if (nodes[connections[i].inNodeId].layer == ilayer) {
-					if (nodes[connections[i].inNodeId].layer < nodes[connections[i].outNodeId].layer) {	// if the connection is normally oriented, else we already used it
-						nodes[connections[i].outNodeId].sumInput += nodes[connections[i].inNodeId].sumOutput * connections[i].weight;
-					}
-				} else {
-					if (nodes[connections[i].outNodeId].layer == ilayer) {
-						if (nodes[connections[i].outNodeId].layer < nodes[connections[i].inNodeId].layer) {	// if the connection is anormally oriented, else we already used it
-							nodes[connections[i].inNodeId].sumInput += nodes[connections[i].outNodeId].sumOutput * connections[i].weight;
-						}
-					}
-				}
-			}
+			if (!connections[i].enabled) continue;	// connection disabled
+
+			int inLayer = nodes[connections[i].inNodeId].layer;
+			int outLayer = nodes[connections[i].outNodeId].layer;
+
+			if (inLayer != ilayer) continue;	// only process nodes in current layer
+			if (outLayer <= inLayer) continue;	// skip recurrent/backward links in this feed-forward pass
+
+			nodes[connections[i].outNodeId].sumInput += nodes[connections[i].inNodeId].sumOutput * connections[i].weight;
 		}
 		
 		// process sumOutput
