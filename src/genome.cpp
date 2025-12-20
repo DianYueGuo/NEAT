@@ -2,6 +2,7 @@
 #include <vector>
 #include <iostream>
 #include <cmath>
+#include <algorithm>
 
 using namespace neat;
 
@@ -63,6 +64,8 @@ void Genome::loadInputs(float inputs[]) {
 
 
 void Genome::runNetwork(float activationFn(float input)) {
+	// make sure all enabled edges are forward by bumping downstream layers as needed
+	ensureForwardLayers();
 	// reset sums for non-input nodes
 	for (int i = nbInput + 1; i < (int) nodes.size(); i++) {
 		nodes[i].sumInput = 0;
@@ -264,8 +267,11 @@ bool Genome::addNode(std::vector<std::vector<int>>* innovIds, int* lastInnovId, 
 			
 			// update layers
 			nodes[newNodeId].layer = nodes[connections[iConn].inNodeId].layer + 1;	// update newNodeId layer
-			nodes[connections[iConn].outNodeId].layer = nodes[newNodeId].layer + 1;	// update outNodeId layer
-			updateLayersRec(connections[iConn].outNodeId);	// recursively update layers
+			int downstreamId = connections[iConn].outNodeId;
+			int desiredLayer = nodes[newNodeId].layer + 1;
+			// never shrink downstream layers; only lift if needed
+			nodes[downstreamId].layer = std::max(nodes[downstreamId].layer, desiredLayer);
+			updateLayersRec(downstreamId);	// recursively update layers
 			
 	return true;
 		} else {
@@ -300,8 +306,27 @@ void Genome::updateLayersRec(int nodeId) {
                 if (nodes[newNodeId].layer < newLayer) {
                     nodes[newNodeId].layer = newLayer;
                     stack.push_back(newNodeId);
-                }
-            }
-        }
+	        }
+	    }
+}
+
+void Genome::ensureForwardLayers() {
+	// Raise downstream layers until every enabled edge is forward.
+	bool changed = true;
+	int guard = static_cast<int>(nodes.size()) * 2 + static_cast<int>(connections.size());
+	while (changed && guard-- > 0) {
+		changed = false;
+		for (const auto& conn : connections) {
+			if (!conn.enabled) continue;
+			if (conn.inNodeId < 0 || conn.inNodeId >= static_cast<int>(nodes.size())) continue;
+			if (conn.outNodeId < 0 || conn.outNodeId >= static_cast<int>(nodes.size())) continue;
+			int neededLayer = nodes[conn.inNodeId].layer + 1;
+			if (nodes[conn.outNodeId].layer < neededLayer) {
+				nodes[conn.outNodeId].layer = neededLayer;
+				changed = true;
+			}
+		}
+	}
+}
     }
 }

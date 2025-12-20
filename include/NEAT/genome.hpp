@@ -17,6 +17,7 @@ class Genome{
 		int isValidNewConnection(int inNodeId, int outNodeId);
 		bool addNode(std::vector<std::vector<int>>* innovIds, int* lastInnovId, int maxIterationsFindNodeThresh);
 		void updateLayersRec(int nodeId);
+		void ensureForwardLayers();
 	public:
 		int nbInput;
 		int nbOutput;
