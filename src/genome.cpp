@@ -29,7 +29,8 @@ Genome::Genome(int nbInput, int nbOutput, std::vector<std::vector<int>>* innovId
 				float weight = (float) rand() / (float) RAND_MAX * 2 * weightExtremumInit - weightExtremumInit;	// random number in [-weightExtremumInit; weightExtremumInit]
 				connections.push_back(Connection(innovId, inNodeId, outNodeId, weight, true));
 			}
-		}
+	}
+	topoDirty = true;
 	}
 
 int Genome::getInnovId(std::vector<std::vector<int>>* innovIds, int* lastInnovId, int inNodeId, int outNodeId) {
@@ -64,45 +65,23 @@ void Genome::loadInputs(float inputs[]) {
 
 
 void Genome::runNetwork(float activationFn(float input)) {
-	// make sure all enabled edges are forward by bumping downstream layers as needed
-	ensureForwardLayers();
+	if (topoDirty) {
+		rebuildTopology();
+	}
 	// reset sums for non-input nodes
 	for (int i = nbInput + 1; i < (int) nodes.size(); i++) {
 		nodes[i].sumInput = 0;
 		nodes[i].sumOutput = 0;
 	}
 
-	// Kahn topological order (feed-forward edges only)
-	std::vector<int> indeg(nodes.size(), 0);
-	for (const auto& conn : connections) {
-		if (!conn.enabled) continue;
-		if (nodes[conn.inNodeId].layer >= nodes[conn.outNodeId].layer) continue;
-		indeg[conn.outNodeId]++;
-	}
-
-	std::vector<int> queue;
-	for (int i = 0; i < (int) nodes.size(); i++) {
-		if (indeg[i] == 0) {
-			queue.push_back(i);
-		}
-	}
-
-	for (size_t idx = 0; idx < queue.size(); idx++) {
-		int nodeId = queue[idx];
-		// activate if not input/bias
+	// forward pass using cached topological order and adjacency
+	for (int nodeId : topoOrder) {
 		if (nodeId > nbInput) {
 			nodes[nodeId].sumOutput = activationFn(nodes[nodeId].sumInput);
 		}
-
-		for (const auto& conn : connections) {
-			if (!conn.enabled) continue;
-			if (nodes[conn.inNodeId].layer >= nodes[conn.outNodeId].layer) continue;
-			if (conn.inNodeId != nodeId) continue;
+		for (int edgeIdx : forwardAdj[nodeId]) {
+			const Connection& conn = connections[edgeIdx];
 			nodes[conn.outNodeId].sumInput += nodes[conn.inNodeId].sumOutput * conn.weight;
-			indeg[conn.outNodeId]--;
-			if (indeg[conn.outNodeId] == 0) {
-				queue.push_back(conn.outNodeId);
-			}
 		}
 	}
 }
@@ -198,18 +177,20 @@ bool Genome::addConnection(std::vector<std::vector<int>>* innovIds, int* lastInn
 				}
 				if (iConnDisabled < (int) connections.size()) {
 					connections[iConnDisabled].enabled = true;	// former connection is reactivaded
+					topoDirty = true;
 					return true;
 				} else {
 					std::cout << "Error : Genome::addConnection" << std::endl;	// impossible
 					return false;
 				}
-			} else {
-				return true;	// return true even no connection has been change because process ended well
-			}
+				} else {
+					return true;	// return true even no connection has been change because process ended well
+				}
 			} else {
 				int innovId = getInnovId(innovIds, lastInnovId, inNodeId, outNodeId);
 				float weight = (float) rand() / (float) RAND_MAX * 2 * weightExtremumInit - weightExtremumInit;	// random number in [-weightExtremumInit; weightExtremumInit]
 				connections.push_back(Connection(innovId, inNodeId, outNodeId, weight, true));
+				topoDirty = true;
 				return true;
 			}
 		} else {
@@ -256,22 +237,23 @@ bool Genome::addNode(std::vector<std::vector<int>>* innovIds, int* lastInnovId, 
 			int inNodeId = connections[iConn].inNodeId;
 			int outNodeId = newNodeId;
 			int innovId = getInnovId(innovIds, lastInnovId, inNodeId, outNodeId);
-			connections.push_back(Connection(innovId, inNodeId, outNodeId, 1.0f, true));	// NEAT sets this to 1.0
-			
-			// build second connection
-			inNodeId = newNodeId;
-			outNodeId = connections[iConn].outNodeId;
+				connections.push_back(Connection(innovId, inNodeId, outNodeId, 1.0f, true));	// NEAT sets this to 1.0
+				
+				// build second connection
+				inNodeId = newNodeId;
+				outNodeId = connections[iConn].outNodeId;
 			innovId = getInnovId(innovIds, lastInnovId, inNodeId, outNodeId);
-			float weight = connections[iConn].weight;	// preserve original weight on second link
-			connections.push_back(Connection(innovId, inNodeId, outNodeId, weight, true));
-			
-			// update layers
-			nodes[newNodeId].layer = nodes[connections[iConn].inNodeId].layer + 1;	// update newNodeId layer
-			int downstreamId = connections[iConn].outNodeId;
-			int desiredLayer = nodes[newNodeId].layer + 1;
-			// never shrink downstream layers; only lift if needed
-			nodes[downstreamId].layer = std::max(nodes[downstreamId].layer, desiredLayer);
-			updateLayersRec(downstreamId);	// recursively update layers
+				float weight = connections[iConn].weight;	// preserve original weight on second link
+				connections.push_back(Connection(innovId, inNodeId, outNodeId, weight, true));
+				
+				// update layers
+				nodes[newNodeId].layer = nodes[connections[iConn].inNodeId].layer + 1;	// update newNodeId layer
+				int downstreamId = connections[iConn].outNodeId;
+				int desiredLayer = nodes[newNodeId].layer + 1;
+				// never shrink downstream layers; only lift if needed
+				nodes[downstreamId].layer = std::max(nodes[downstreamId].layer, desiredLayer);
+				updateLayersRec(downstreamId);	// recursively update layers
+				topoDirty = true;
 			
 	return true;
 		} else {
@@ -327,6 +309,41 @@ void Genome::ensureForwardLayers() {
 			}
 		}
 	}
+}
+
+void Genome::rebuildTopology() {
+	ensureForwardLayers();
+	forwardAdj.assign(nodes.size(), {});
+	std::vector<int> indeg(nodes.size(), 0);
+	for (int i = 0; i < (int) connections.size(); i++) {
+		const auto& conn = connections[i];
+		if (!conn.enabled) continue;
+		if (conn.inNodeId < 0 || conn.inNodeId >= static_cast<int>(nodes.size())) continue;
+		if (conn.outNodeId < 0 || conn.outNodeId >= static_cast<int>(nodes.size())) continue;
+		if (nodes[conn.inNodeId].layer >= nodes[conn.outNodeId].layer) continue;	// skip non-forward
+		forwardAdj[conn.inNodeId].push_back(i);
+		indeg[conn.outNodeId]++;
+	}
+	topoOrder.clear();
+	std::vector<int> queue;
+	queue.reserve(nodes.size());
+	for (int i = 0; i < (int) nodes.size(); i++) {
+		if (indeg[i] == 0) queue.push_back(i);
+	}
+	for (size_t idx = 0; idx < queue.size(); idx++) {
+		int nodeId = queue[idx];
+		topoOrder.push_back(nodeId);
+		for (int edgeIdx : forwardAdj[nodeId]) {
+			int out = connections[edgeIdx].outNodeId;
+			if (--indeg[out] == 0) queue.push_back(out);
+		}
+	}
+	// if not all nodes reached (cycle), fall back to linear order as a guard
+	if (topoOrder.size() != nodes.size()) {
+		topoOrder.clear();
+		for (int i = 0; i < (int) nodes.size(); i++) topoOrder.push_back(i);
+	}
+	topoDirty = false;
 }
     }
 }

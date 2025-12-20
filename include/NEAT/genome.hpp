@@ -10,6 +10,9 @@ namespace neat {
 class Genome{
 	private:
 		float weightExtremumInit;
+		bool topoDirty = true;
+		std::vector<std::vector<int>> forwardAdj;
+		std::vector<int> topoOrder;
 	
 		int getInnovId(std::vector<std::vector<int>>* innovIds, int* lastInnovId, int inNodeId, int outNodeId);
 		void mutateWeights(float mutateWeightFullChangeThresh, float mutateWeightFactor, float mutateWeightThresh);
@@ -18,6 +21,7 @@ class Genome{
 		bool addNode(std::vector<std::vector<int>>* innovIds, int* lastInnovId, int maxIterationsFindNodeThresh);
 		void updateLayersRec(int nodeId);
 		void ensureForwardLayers();
+		void rebuildTopology();
 	public:
 		int nbInput;
 		int nbOutput;
