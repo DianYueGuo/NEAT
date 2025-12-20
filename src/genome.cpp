@@ -288,8 +288,10 @@ void Genome::updateLayersRec(int nodeId) {
                 if (nodes[newNodeId].layer < newLayer) {
                     nodes[newNodeId].layer = newLayer;
                     stack.push_back(newNodeId);
-	        }
-	    }
+		        }
+		    }
+        }
+    }
 }
 
 void Genome::ensureForwardLayers() {
@@ -344,6 +346,4 @@ void Genome::rebuildTopology() {
 		for (int i = 0; i < (int) nodes.size(); i++) topoOrder.push_back(i);
 	}
 	topoDirty = false;
-}
-    }
 }
